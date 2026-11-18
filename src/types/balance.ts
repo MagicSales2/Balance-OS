@@ -69,6 +69,7 @@ export interface DailyIntention {
   spaceName: string;
   timeWindow: string;
   completed: boolean;
+  isSuggestedInitial?: boolean;
   cognitiveLoad?: 'suave' | 'medio' | 'alto';
   physicalLoad?: 'suave' | 'medio' | 'alto';
   steps?: string[];
@@ -138,6 +139,8 @@ export interface LibraryEntry {
 export interface UserPreferences {
   name: string;
   email: string;
+  city?: string;
+  role?: string;
   personalMotto: string;
   currency: 'USD' | 'EUR' | 'COP';
   weekStart: 'Lunes' | 'Domingo';
@@ -168,11 +171,10 @@ export interface LifeBalanceDimension {
   id: string;
   label: string;
   shortLabel: string;
-  /** Escala ilustrativa de presencia/atención relativa (0 a 100), no es una calificación moral. */
+  /** Escala de presencia/atención relativa (0 a 100), no es una calificación moral. */
   presence: number;
   color: string;
   softBg: string;
-  /** Señales personales que alimentarán esta dimensión en futuras etapas. */
   sourceSignals: LifeBalanceSourceSignal[];
   exampleContext: string;
 }
@@ -181,6 +183,7 @@ export interface LifeBalanceSnapshot {
   period: LifeBalancePeriod;
   periodLabel: string;
   isDemoData: boolean;
+  hasHistoricalData: boolean;
   dimensions: LifeBalanceDimension[];
   summaryNote: string;
 }

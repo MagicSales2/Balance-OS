@@ -96,11 +96,13 @@ export function Sidebar({
         </p>
         <div className="flex items-center gap-2.5 pt-1">
           <div className="w-8 h-8 rounded-full bg-[#EEF4F0] text-[#5E8371] flex items-center justify-center text-xs font-semibold shrink-0">
-            {userName.slice(0, 1).toUpperCase()}
+            {(userName.trim() || 'B').slice(0, 1).toUpperCase()}
           </div>
           <div className="min-w-0">
-            <p className="text-xs font-medium text-[#172121] truncate">{userName}</p>
-            <p className="text-[11px] text-[#768482] truncate">Espacio personal</p>
+            <p className="text-xs font-medium text-[#172121] truncate">
+              {userName.trim() || 'Perfil personal'}
+            </p>
+            <p className="text-[11px] text-[#768482] truncate">Medellín, Colombia</p>
           </div>
         </div>
       </div>

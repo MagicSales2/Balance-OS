@@ -85,6 +85,8 @@ export function SpacesView({
   const [newTone, setNewTone] = useState<AccentTone>('sage');
   const [newIcon, setNewIcon] = useState<SpaceIconName>('Sprout');
   const [newObjectiveInput, setNewObjectiveInput] = useState('');
+  const [showCreateExtra, setShowCreateExtra] = useState(false);
+  const [showEditExtra, setShowEditExtra] = useState(false);
 
   const [newObjectiveInDetail, setNewObjectiveInDetail] = useState('');
 
@@ -180,6 +182,7 @@ export function SpacesView({
     setNewTone('sage');
     setNewIcon('Sprout');
     setNewObjectiveInput('');
+    setShowCreateExtra(false);
     setCreatingOpen(false);
   };
 
@@ -203,13 +206,13 @@ export function SpacesView({
   return (
     <div className="space-y-7">
       {/* Header */}
-      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-5 pb-6 border-b border-[#E5EAE8]">
-        <div className="space-y-1.5 max-w-2xl">
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 pb-5 border-b border-[#E5EAE8]">
+        <div className="space-y-1 max-w-xl">
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#172121]">
             Mis espacios
           </h1>
-          <p className="text-sm leading-relaxed text-[#4E5D5B]">
-            Siete dimensiones iniciales para mirar tu vida de forma integral. Puedes renombrarlas, cambiar sus iconos y colores, reorganizar su orden o crear espacios propios a tu medida.
+          <p className="text-sm text-[#52605E]">
+            Dimensiones de tu vida, adaptables a tu ritmo.
           </p>
         </div>
 
@@ -217,7 +220,7 @@ export function SpacesView({
           <button
             type="button"
             onClick={() => setCustomizeMode((v) => !v)}
-            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium border transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
               customizeMode
                 ? 'bg-[#ECF4F5] border-[#135D66]/30 text-[#135D66]'
                 : 'bg-white border-[#E5EAE8] text-[#4E5D5B] hover:text-[#172121] hover:border-[#CBD5D3]'
@@ -225,12 +228,12 @@ export function SpacesView({
           >
             {customizeMode ? (
               <>
-                <Check className="w-4 h-4" />
-                <span>Listo de personalizar</span>
+                <Check className="w-3.5 h-3.5" />
+                <span>Listo</span>
               </>
             ) : (
               <>
-                <SlidersHorizontal className="w-4 h-4" />
+                <SlidersHorizontal className="w-3.5 h-3.5" />
                 <span>Personalizar mis espacios</span>
               </>
             )}
@@ -239,7 +242,7 @@ export function SpacesView({
           <button
             type="button"
             onClick={() => setCreatingOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#135D66] text-white text-sm font-medium hover:bg-[#0E4950] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#135D66] text-white text-xs font-medium hover:bg-[#0E4950] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             <span>Crear espacio</span>
@@ -249,16 +252,16 @@ export function SpacesView({
 
       {/* Customization Helper Banner when active */}
       {customizeMode && (
-        <div className="bg-[#ECF4F5]/70 border border-[#135D66]/20 rounded-2xl px-5 py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="bg-[#ECF4F5]/70 border border-[#135D66]/20 rounded-2xl px-4 py-3 flex items-center justify-between gap-3">
           <p className="text-xs text-[#135D66]">
-            Modo personalización activo: usa las flechas en cada tarjeta para cambiar el orden, edita nombre, icono, color y descripción, o archiva los espacios que ahora no necesites.
+            Reordena con las flechas, edita, archiva o elimina cualquier espacio.
           </p>
           <button
             type="button"
             onClick={() => setCustomizeMode(false)}
-            className="text-xs font-medium text-[#135D66] hover:underline whitespace-nowrap shrink-0 cursor-pointer self-start sm:self-auto"
+            className="text-xs font-medium text-[#135D66] hover:underline whitespace-nowrap shrink-0 cursor-pointer"
           >
-            Finalizar orden
+            Listo
           </button>
         </div>
       )}
@@ -317,12 +320,7 @@ export function SpacesView({
           <p className="text-base font-medium text-[#172121]">
             {showArchived
               ? 'No tienes espacios archivados'
-              : `No hay espacios activos en el ritmo “${filterRhythm}”`}
-          </p>
-          <p className="text-sm text-[#52605E] max-w-md mx-auto">
-            {showArchived
-              ? 'Cuando archives un espacio que ya no necesites ver en tu día a día, aparecerá aquí por si deseas recuperarlo.'
-              : 'Prueba mostrando todos los espacios o crea uno nuevo adaptado a tu momento actual.'}
+              : `Sin espacios en “${filterRhythm}”`}
           </p>
           <div className="pt-2 flex items-center justify-center gap-3">
             {showArchived ? (
@@ -474,7 +472,7 @@ export function SpacesView({
                         onClick={() => setInspectingSpaceId(space.id)}
                         className={`inline-flex items-center gap-1.5 text-xs font-medium hover:underline cursor-pointer ${tone.softText}`}
                       >
-                        <span>Ver actividades, notas y objetivos</span>
+                        <span>Abrir espacio</span>
                         <ArrowRight className="w-3.5 h-3.5" />
                       </button>
 
@@ -726,44 +724,25 @@ export function SpacesView({
         onClose={() => {
           setEditingSpace(null);
           setConfirmDeleteId(null);
+          setShowEditExtra(false);
         }}
-        title={editingSpace ? `Personalizar: ${editingSpace.name}` : ''}
-        subtitle="Renombra, elige icono y color sutil, o archiva este espacio."
+        title={editingSpace ? `Editar: ${editingSpace.name}` : ''}
+        maxWidthClass="max-w-md"
       >
         {editingSpace && (
-          <form onSubmit={handleSaveEdit} className="space-y-5">
-            <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-[#4E5D5B]">
-                Nombre del espacio
-              </label>
-              <input
-                type="text"
-                required
-                value={editingSpace.name}
-                onChange={(e) => setEditingSpace({ ...editingSpace, name: e.target.value })}
-                className="w-full px-3.5 py-2.5 text-sm border border-[#E5EAE8] rounded-xl text-[#172121] focus:outline-none focus:border-[#135D66]"
-              />
-            </div>
+          <form onSubmit={handleSaveEdit} className="space-y-4">
+            <input
+              type="text"
+              required
+              autoFocus
+              value={editingSpace.name}
+              onChange={(e) => setEditingSpace({ ...editingSpace, name: e.target.value })}
+              placeholder="Nombre del espacio"
+              className="w-full px-3.5 py-2.5 text-sm border border-[#E5EAE8] rounded-xl text-[#172121] focus:outline-none focus:border-[#135D66]"
+            />
 
-            <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-[#4E5D5B]">
-                Descripción breve
-              </label>
-              <textarea
-                rows={3}
-                value={editingSpace.intention}
-                onChange={(e) =>
-                  setEditingSpace({ ...editingSpace, intention: e.target.value })
-                }
-                className="w-full px-3.5 py-2.5 text-sm border border-[#E5EAE8] rounded-xl text-[#172121] focus:outline-none focus:border-[#135D66]"
-              />
-            </div>
-
-            {/* Selector visual de icono */}
             <div className="space-y-2">
-              <label className="block text-xs font-medium text-[#4E5D5B]">
-                Icono representativo
-              </label>
+              <p className="text-xs font-medium text-[#4E5D5B]">Icono</p>
               <div className="grid grid-cols-6 gap-2">
                 {SPACE_ICON_OPTIONS.map((opt) => {
                   const selected = editingSpace.iconName === opt.name;
@@ -776,7 +755,7 @@ export function SpacesView({
                       onClick={() =>
                         setEditingSpace({ ...editingSpace, iconName: opt.name })
                       }
-                      className={`p-2.5 rounded-xl border flex items-center justify-center transition-colors cursor-pointer ${
+                      className={`p-2 rounded-xl border flex items-center justify-center transition-colors cursor-pointer ${
                         selected
                           ? 'border-[#135D66] bg-[#ECF4F5] text-[#135D66]'
                           : 'border-[#E5EAE8] bg-white text-[#52605E] hover:text-[#172121]'
@@ -789,11 +768,8 @@ export function SpacesView({
               </div>
             </div>
 
-            {/* Selector visual de color sutil */}
             <div className="space-y-2">
-              <label className="block text-xs font-medium text-[#4E5D5B]">
-                Color de identificación sutil
-              </label>
+              <p className="text-xs font-medium text-[#4E5D5B]">Color</p>
               <div className="flex flex-wrap gap-2">
                 {TONE_OPTIONS.map((toneKey) => {
                   const style = TONE_STYLES[toneKey];
@@ -821,27 +797,46 @@ export function SpacesView({
               </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-[#4E5D5B]">Ritmo actual</label>
-              <select
-                value={editingSpace.rhythm}
-                onChange={(e) =>
-                  setEditingSpace({
-                    ...editingSpace,
-                    rhythm: e.target.value as SpaceRhythm,
-                  })
-                }
-                className="w-full px-3.5 py-2.5 text-sm border border-[#E5EAE8] rounded-xl text-[#172121] bg-white focus:outline-none focus:border-[#135D66]"
-              >
-                <option value="En foco">En foco</option>
-                <option value="Activo">Activo</option>
-                <option value="En calma">En calma</option>
-                <option value="En pausa consciente">En pausa consciente</option>
-              </select>
-            </div>
+            <button
+              type="button"
+              onClick={() => setShowEditExtra((v) => !v)}
+              className="text-xs text-[#135D66] hover:underline cursor-pointer"
+            >
+              {showEditExtra ? 'Ocultar detalles' : '+ Descripción y ritmo'}
+            </button>
+
+            {showEditExtra && (
+              <div className="space-y-3">
+                <textarea
+                  rows={2}
+                  value={editingSpace.intention}
+                  onChange={(e) =>
+                    setEditingSpace({ ...editingSpace, intention: e.target.value })
+                  }
+                  placeholder="Descripción breve"
+                  className="w-full px-3.5 py-2 text-sm border border-[#E5EAE8] rounded-xl text-[#172121] focus:outline-none focus:border-[#135D66]"
+                />
+
+                <select
+                  value={editingSpace.rhythm}
+                  onChange={(e) =>
+                    setEditingSpace({
+                      ...editingSpace,
+                      rhythm: e.target.value as SpaceRhythm,
+                    })
+                  }
+                  className="w-full px-3.5 py-2 text-xs border border-[#E5EAE8] rounded-xl text-[#172121] bg-white focus:outline-none focus:border-[#135D66]"
+                >
+                  <option value="En foco">En foco</option>
+                  <option value="Activo">Activo</option>
+                  <option value="En calma">En calma</option>
+                  <option value="En pausa consciente">En pausa consciente</option>
+                </select>
+              </div>
+            )}
 
             {/* Archive / Delete section */}
-            <div className="pt-3 border-t border-[#EFF2F1] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="pt-3 border-t border-[#EFF2F1] flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -874,7 +869,7 @@ export function SpacesView({
                     }}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-[#8C4A4A] text-white cursor-pointer"
                   >
-                    Confirmar eliminación
+                    Confirmar
                   </button>
                 ) : (
                   <button
@@ -888,22 +883,22 @@ export function SpacesView({
                 )}
               </div>
 
-              <div className="flex items-center gap-2.5 justify-end">
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => {
                     setEditingSpace(null);
                     setConfirmDeleteId(null);
                   }}
-                  className="px-4 py-2 text-sm font-medium text-[#52605E] hover:text-[#172121] cursor-pointer"
+                  className="px-3 py-2 text-xs font-medium text-[#52605E] hover:text-[#172121] cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 text-sm font-medium bg-[#135D66] text-white rounded-xl hover:bg-[#0E4950] transition-colors cursor-pointer"
+                  className="px-4 py-2 text-xs font-medium bg-[#135D66] text-white rounded-xl hover:bg-[#0E4950] transition-colors cursor-pointer"
                 >
-                  Guardar cambios
+                  Guardar
                 </button>
               </div>
             </div>
@@ -914,38 +909,26 @@ export function SpacesView({
       {/* Modal: Crear nuevo espacio */}
       <Modal
         open={creatingOpen}
-        onClose={() => setCreatingOpen(false)}
-        title="Crear nuevo espacio"
-        subtitle="Añade una nueva dimensión de tu vida y personalízala a tu manera."
+        onClose={() => {
+          setCreatingOpen(false);
+          setShowCreateExtra(false);
+        }}
+        title="Crear espacio"
+        maxWidthClass="max-w-md"
       >
         <form onSubmit={handleCreateSpace} className="space-y-4">
-          <div className="space-y-1.5">
-            <label className="block text-xs font-medium text-[#4E5D5B]">Nombre</label>
-            <input
-              type="text"
-              required
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="Ej. Hogar y entorno, o Creatividad"
-              className="w-full px-3.5 py-2.5 text-sm border border-[#E5EAE8] rounded-xl text-[#172121] focus:outline-none focus:border-[#135D66]"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="block text-xs font-medium text-[#4E5D5B]">
-              Descripción breve
-            </label>
-            <textarea
-              rows={2}
-              value={newIntention}
-              onChange={(e) => setNewIntention(e.target.value)}
-              placeholder="¿Qué representa este espacio en tu vida?"
-              className="w-full px-3.5 py-2.5 text-sm border border-[#E5EAE8] rounded-xl text-[#172121] focus:outline-none focus:border-[#135D66]"
-            />
-          </div>
+          <input
+            type="text"
+            required
+            autoFocus
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            placeholder="Nombre (ej. Hogar, Creatividad)"
+            className="w-full px-3.5 py-2.5 text-sm border border-[#E5EAE8] rounded-xl text-[#172121] focus:outline-none focus:border-[#135D66]"
+          />
 
           <div className="space-y-2">
-            <label className="block text-xs font-medium text-[#4E5D5B]">Icono</label>
+            <p className="text-xs font-medium text-[#4E5D5B]">Icono</p>
             <div className="grid grid-cols-6 gap-2">
               {SPACE_ICON_OPTIONS.map((opt) => {
                 const selected = newIcon === opt.name;
@@ -956,7 +939,7 @@ export function SpacesView({
                     title={opt.label}
                     aria-label={opt.label}
                     onClick={() => setNewIcon(opt.name)}
-                    className={`p-2.5 rounded-xl border flex items-center justify-center transition-colors cursor-pointer ${
+                    className={`p-2 rounded-xl border flex items-center justify-center transition-colors cursor-pointer ${
                       selected
                         ? 'border-[#135D66] bg-[#ECF4F5] text-[#135D66]'
                         : 'border-[#E5EAE8] bg-white text-[#52605E] hover:text-[#172121]'
@@ -970,9 +953,7 @@ export function SpacesView({
           </div>
 
           <div className="space-y-2">
-            <label className="block text-xs font-medium text-[#4E5D5B]">
-              Color de identificación
-            </label>
+            <p className="text-xs font-medium text-[#4E5D5B]">Color</p>
             <div className="flex flex-wrap gap-2">
               {TONE_OPTIONS.map((toneKey) => {
                 const style = TONE_STYLES[toneKey];
@@ -1000,48 +981,60 @@ export function SpacesView({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-[#4E5D5B]">Ritmo inicial</label>
-              <select
-                value={newRhythm}
-                onChange={(e) => setNewRhythm(e.target.value as SpaceRhythm)}
-                className="w-full px-3.5 py-2.5 text-sm border border-[#E5EAE8] rounded-xl bg-white text-[#172121] focus:outline-none focus:border-[#135D66]"
-              >
-                <option value="En foco">En foco</option>
-                <option value="Activo">Activo</option>
-                <option value="En calma">En calma</option>
-                <option value="En pausa consciente">En pausa consciente</option>
-              </select>
-            </div>
+          <button
+            type="button"
+            onClick={() => setShowCreateExtra((v) => !v)}
+            className="text-xs text-[#135D66] hover:underline cursor-pointer"
+          >
+            {showCreateExtra ? 'Ocultar detalles' : '+ Descripción, ritmo y primer objetivo'}
+          </button>
 
-            <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-[#4E5D5B]">
-                Primer objetivo (opcional)
-              </label>
-              <input
-                type="text"
-                value={newObjectiveInput}
-                onChange={(e) => setNewObjectiveInput(e.target.value)}
-                placeholder="Ej. Dedicar 1 hora los sábados"
-                className="w-full px-3.5 py-2.5 text-sm border border-[#E5EAE8] rounded-xl text-[#172121] focus:outline-none focus:border-[#135D66]"
+          {showCreateExtra && (
+            <div className="space-y-3">
+              <textarea
+                rows={2}
+                value={newIntention}
+                onChange={(e) => setNewIntention(e.target.value)}
+                placeholder="¿Qué representa este espacio?"
+                className="w-full px-3.5 py-2 text-sm border border-[#E5EAE8] rounded-xl text-[#172121] focus:outline-none focus:border-[#135D66]"
               />
-            </div>
-          </div>
 
-          <div className="flex items-center justify-end gap-3 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <select
+                  value={newRhythm}
+                  onChange={(e) => setNewRhythm(e.target.value as SpaceRhythm)}
+                  className="w-full px-3 py-2 text-xs border border-[#E5EAE8] rounded-xl bg-white text-[#172121] focus:outline-none focus:border-[#135D66]"
+                >
+                  <option value="En foco">En foco</option>
+                  <option value="Activo">Activo</option>
+                  <option value="En calma">En calma</option>
+                  <option value="En pausa consciente">En pausa consciente</option>
+                </select>
+
+                <input
+                  type="text"
+                  value={newObjectiveInput}
+                  onChange={(e) => setNewObjectiveInput(e.target.value)}
+                  placeholder="Primer objetivo (opcional)"
+                  className="w-full px-3 py-2 text-xs border border-[#E5EAE8] rounded-xl text-[#172121] focus:outline-none focus:border-[#135D66]"
+                />
+              </div>
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-3 pt-1">
             <button
               type="button"
               onClick={() => setCreatingOpen(false)}
-              className="px-4 py-2 text-sm font-medium text-[#52605E] hover:text-[#172121] cursor-pointer"
+              className="px-3.5 py-2 text-xs font-medium text-[#52605E] hover:text-[#172121] cursor-pointer"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="px-4 py-2 text-sm font-medium bg-[#135D66] text-white rounded-xl hover:bg-[#0E4950] transition-colors cursor-pointer"
+              className="px-4 py-2 text-xs font-medium bg-[#135D66] text-white rounded-xl hover:bg-[#0E4950] transition-colors cursor-pointer"
             >
-              Crear espacio
+              Crear
             </button>
           </div>
         </form>

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { AiAssistantDrawer } from './components/ai/AiAssistantDrawer';
-import { AdaptivePlanningDrawer } from './components/dashboard/AdaptivePlanningDrawer';
+import { AdaptivePlanningModal } from './components/dashboard/AdaptivePlanningModal';
 import { Sidebar } from './components/layout/Sidebar';
 import { TopHeader } from './components/layout/TopHeader';
 import { EvolutionView } from './components/views/EvolutionView';
@@ -11,8 +11,8 @@ import { PlanningView } from './components/views/PlanningView';
 import { SettingsView } from './components/views/SettingsView';
 import { SpacesView } from './components/views/SpacesView';
 import {
+  AdaptiveScope,
   buildAdaptiveContextSnapshot,
-  generateAdaptivePlanProposal,
   ReorganizationSuggestion,
 } from './utils/adaptivePlanning';
 import {
@@ -46,7 +46,9 @@ export default function App() {
 
   const [aiOpen, setAiOpen] = useState(false);
   const [aiInitialPrompt, setAiInitialPrompt] = useState<string | null>(null);
+
   const [adaptiveOpen, setAdaptiveOpen] = useState(false);
+  const [adaptiveScope, setAdaptiveScope] = useState<AdaptiveScope>('day');
   const [hasWellbeingCheckIn, setHasWellbeingCheckIn] = useState(false);
   const [reorganizationNotice, setReorganizationNotice] = useState(false);
 
@@ -72,10 +74,31 @@ export default function App() {
     [preferences, energy, intentions, commitments, spaces]
   );
 
-  const adaptiveProposal = useMemo(
-    () => generateAdaptivePlanProposal(adaptiveContext),
-    [adaptiveContext]
+  const balanceInput = useMemo(
+    () => ({
+      energy,
+      hasWellbeingCheckIn,
+      spaces,
+      intentions,
+      commitments,
+      evolution,
+      movements,
+      library,
+    }),
+    [energy, hasWellbeingCheckIn, spaces, intentions, commitments, evolution, movements, library]
   );
+
+  const logActivity = (description: string, spaceName: string) => {
+    setActivity((prev) => [
+      {
+        id: `act-${Date.now()}`,
+        description,
+        spaceName,
+        timeLabel: 'Ahora',
+      },
+      ...prev.slice(0, 5),
+    ]);
+  };
 
   const handleUpdateEnergy = (next: EnergyState) => {
     setEnergy(next);
@@ -83,7 +106,15 @@ export default function App() {
     setReorganizationNotice(false);
   };
 
-  const handleApplyReorganization = (accepted: ReorganizationSuggestion[]) => {
+  const openAdaptiveModal = (scope: AdaptiveScope) => {
+    setAdaptiveScope(scope);
+    setAdaptiveOpen(true);
+  };
+
+  const handleApplyReorganization = (
+    accepted: ReorganizationSuggestion[],
+    scope: AdaptiveScope
+  ) => {
     setIntentions((prev) => {
       let updated = [...prev];
 
@@ -105,7 +136,7 @@ export default function App() {
               postponedTo: undefined,
             };
           });
-        } else if (sug.targetType === 'new_rest') {
+        } else if (sug.targetType === 'new_rest' && scope === 'day') {
           const alreadyExists = updated.some(
             (i) => i.isRest && i.title === sug.proposedTitle
           );
@@ -126,45 +157,56 @@ export default function App() {
       return updated;
     });
 
-    setCommitments((prev) =>
-      prev.map((com) => {
+    setCommitments((prev) => {
+      let updated = prev.map((com) => {
         const match = accepted.find(
           (s) => s.targetType === 'commitment' && s.targetId === com.id
         );
         if (!match) return com;
-        if (match.actionType === 'aplazar') {
-          return {
-            ...com,
-            dayIndex: 3,
-            dateLabel: 'Jueves 19 nov',
-          };
-        }
         return {
           ...com,
           title: match.proposedTitle,
           startTime: match.proposedTimeWindow,
+          dayIndex: match.proposedDayIndex ?? com.dayIndex,
+          dateLabel: match.proposedDateLabel ?? com.dateLabel,
         };
-      })
-    );
+      });
+
+      if (scope === 'week') {
+        accepted
+          .filter((s) => s.targetType === 'new_rest')
+          .forEach((rest) => {
+            updated = [
+              ...updated,
+              {
+                id: `com-rest-${Date.now()}`,
+                title: rest.proposedTitle,
+                spaceId: rest.spaceId,
+                spaceName: rest.spaceName,
+                dayIndex: rest.proposedTimeWindow.includes('Domingo') ? 6 : 3,
+                dateLabel: rest.proposedTimeWindow.includes('Domingo')
+                  ? 'Domingo 22 nov'
+                  : 'Jueves 19 nov',
+                startTime: rest.proposedTimeWindow.includes('17:00') ? '17:00' : '10:00',
+                duration: '60 min',
+                kind: 'Bienestar',
+                completed: false,
+              },
+            ];
+          });
+      }
+
+      return updated;
+    });
 
     logActivity(
-      `Adaptaste tu jornada con ${accepted.length} ajuste${accepted.length > 1 ? 's' : ''} consciente${accepted.length > 1 ? 's' : ''}.`,
+      scope === 'week'
+        ? `Reorganizaste tu semana con ${accepted.length} ajuste${accepted.length > 1 ? 's' : ''}.`
+        : `Adaptaste tu día con ${accepted.length} ajuste${accepted.length > 1 ? 's' : ''}.`,
       'Bienestar'
     );
     setAdaptiveOpen(false);
     setReorganizationNotice(true);
-  };
-
-  const logActivity = (description: string, spaceName: string) => {
-    setActivity((prev) => [
-      {
-        id: `act-${Date.now()}`,
-        description,
-        spaceName,
-        timeLabel: 'Ahora',
-      },
-      ...prev.slice(0, 5),
-    ]);
   };
 
   const handleToggleIntention = (id: string) => {
@@ -184,17 +226,17 @@ export default function App() {
       completed: false,
     };
     setIntentions((prev) => [...prev, created]);
-    logActivity(`Añadiste una intención en Mi día: "${title}".`, created.spaceName);
+    logActivity(`Añadiste en Mi día: "${title}".`, created.spaceName);
   };
 
   const handleUpdateSpace = (updated: LifeSpace) => {
     setSpaces((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
-    logActivity(`Actualizaste el espacio "${updated.name}".`, updated.name);
+    logActivity(`Actualizaste "${updated.name}".`, updated.name);
   };
 
   const handleAddSpace = (space: LifeSpace) => {
     setSpaces((prev) => [...prev, space]);
-    logActivity(`Creaste el nuevo espacio "${space.name}".`, space.name);
+    logActivity(`Creaste el espacio "${space.name}".`, space.name);
   };
 
   const handleArchiveSpace = (id: string, archived: boolean) => {
@@ -205,8 +247,8 @@ export default function App() {
     if (target) {
       logActivity(
         archived
-          ? `Archivaste el espacio "${target.name}".`
-          : `Restauraste el espacio "${target.name}".`,
+          ? `Archivaste "${target.name}".`
+          : `Restauraste "${target.name}".`,
         target.name
       );
     }
@@ -216,7 +258,7 @@ export default function App() {
     const target = spaces.find((s) => s.id === id);
     setSpaces((prev) => prev.filter((s) => s.id !== id));
     if (target) {
-      logActivity(`Eliminaste el espacio "${target.name}".`, 'Mis espacios');
+      logActivity(`Eliminaste "${target.name}".`, 'Mis espacios');
     }
   };
 
@@ -249,7 +291,7 @@ export default function App() {
 
   const handleAddCommitment = (commitment: Commitment) => {
     setCommitments((prev) => [...prev, commitment]);
-    logActivity(`Reservaste "${commitment.title}" en tu agenda.`, commitment.spaceName);
+    logActivity(`Reservaste "${commitment.title}".`, commitment.spaceName);
   };
 
   const handleAddEvolutionPoint = (point: EvolutionPoint) => {
@@ -259,7 +301,7 @@ export default function App() {
 
   const handleAddMovement = (movement: FinanceMovement) => {
     setMovements((prev) => [movement, ...prev]);
-    logActivity(`Registraste un movimiento en Finanzas: "${movement.concept}".`, 'Finanzas');
+    logActivity(`Registraste "${movement.concept}".`, 'Finanzas');
   };
 
   const handleAddLibraryEntry = (entry: LibraryEntry) => {
@@ -293,14 +335,14 @@ export default function App() {
           onOpenAi={() => setAiOpen(true)}
         />
 
-        <main className="flex-1 px-4 sm:px-8 py-7 sm:py-9 max-w-[1260px] w-full mx-auto pb-24">
+        <main className="flex-1 px-4 sm:px-8 py-7 sm:py-8 max-w-[1260px] w-full mx-auto pb-24">
           {activeSection === 'inicio' && (
             <HomeView
               preferences={preferences}
               energy={energy}
               onUpdateEnergy={handleUpdateEnergy}
               hasWellbeingCheckIn={hasWellbeingCheckIn}
-              onOpenAdaptivePlanning={() => setAdaptiveOpen(true)}
+              onOpenAdaptivePlanning={() => openAdaptiveModal('day')}
               reorganizationNotice={reorganizationNotice}
               intentions={intentions}
               onToggleIntention={handleToggleIntention}
@@ -308,6 +350,7 @@ export default function App() {
               spaces={spaces}
               commitments={commitments}
               recentActivity={activity}
+              balanceInput={balanceInput}
               onNavigate={setActiveSection}
               onAskAi={handleAskAi}
             />
@@ -336,6 +379,8 @@ export default function App() {
               spaces={spaces}
               onToggleCommitment={handleToggleCommitment}
               onAddCommitment={handleAddCommitment}
+              onOpenAdaptiveWeek={() => openAdaptiveModal('week')}
+              onOpenAdaptiveDay={() => openAdaptiveModal('day')}
             />
           )}
 
@@ -380,13 +425,15 @@ export default function App() {
         energy={energy}
         initialPrompt={aiInitialPrompt}
         onClearInitialPrompt={() => setAiInitialPrompt(null)}
+        onOpenAdaptivePlanning={openAdaptiveModal}
+        onQuickAddIntention={handleAddIntention}
       />
 
-      <AdaptivePlanningDrawer
+      <AdaptivePlanningModal
         open={adaptiveOpen}
+        scope={adaptiveScope}
         onClose={() => setAdaptiveOpen(false)}
         context={adaptiveContext}
-        initialProposal={adaptiveProposal}
         onApplyReorganization={handleApplyReorganization}
       />
     </div>

@@ -33,6 +33,7 @@ export function LibraryView({
   const [category, setCategory] = useState<LibraryCategory>('Idea');
   const [spaceName, setSpaceName] = useState(spaces[0]?.name ?? 'Desarrollo personal');
   const [content, setContent] = useState('');
+  const [showSpacePicker, setShowSpacePicker] = useState(false);
 
   const filtered = entries.filter((item) => {
     const matchesCat = activeCategory === 'Todas' || item.category === activeCategory;
@@ -60,25 +61,26 @@ export function LibraryView({
 
     setTitle('');
     setContent('');
+    setShowSpacePicker(false);
     setCreateOpen(false);
   };
 
   return (
-    <div className="space-y-7">
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-6 border-b border-[#E5EAE8]">
-        <div className="space-y-1.5 max-w-2xl">
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pb-5 border-b border-[#E5EAE8]">
+        <div>
           <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#172121]">
             Mi biblioteca
           </h1>
-          <p className="text-sm text-[#4E5D5B]">
-            Un archivo sereno para guardar ideas, notas, reflexiones y recursos personales sin ruido.
+          <p className="text-sm text-[#52605E] mt-1">
+            Ideas, notas, reflexiones y recursos personales
           </p>
         </div>
 
         <button
           type="button"
           onClick={() => setCreateOpen(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#135D66] text-white text-sm font-medium hover:bg-[#0E4950] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#135D66] text-white text-xs font-medium hover:bg-[#0E4950] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
         >
           <Plus className="w-4 h-4" />
           <span>Nueva nota</span>
@@ -222,78 +224,81 @@ export function LibraryView({
       <Modal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        title="Guardar en Mi biblioteca"
-        subtitle="Captura una idea, nota, reflexión o recurso para volver a él cuando lo necesites."
+        title="Nueva nota"
+        maxWidthClass="max-w-md"
       >
         <form onSubmit={handleCreate} className="space-y-4">
-          <div className="space-y-1.5">
-            <label className="block text-xs font-medium text-[#4E5D5B]">Título</label>
-            <input
-              type="text"
-              required
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Ej. Rituales tranquilos de domingo"
-              className="w-full px-3.5 py-2.5 text-sm border border-[#E5EAE8] rounded-xl text-[#172121] focus:outline-none focus:border-[#135D66]"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-[#4E5D5B]">Tipo</label>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value as LibraryCategory)}
-                className="w-full px-3.5 py-2.5 text-sm border border-[#E5EAE8] rounded-xl bg-white text-[#172121] focus:outline-none focus:border-[#135D66]"
+          <div className="flex flex-wrap gap-1.5">
+            {(['Idea', 'Nota', 'Reflexión', 'Recurso'] as LibraryCategory[]).map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setCategory(cat)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                  category === cat
+                    ? 'bg-[#ECF4F5] text-[#135D66]'
+                    : 'bg-[#F7F8F7] text-[#52605E] hover:text-[#172121]'
+                }`}
               >
-                <option value="Idea">Idea</option>
-                <option value="Nota">Nota</option>
-                <option value="Reflexión">Reflexión</option>
-                <option value="Recurso">Recurso</option>
-              </select>
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-[#4E5D5B]">Espacio asociado</label>
-              <select
-                value={spaceName}
-                onChange={(e) => setSpaceName(e.target.value)}
-                className="w-full px-3.5 py-2.5 text-sm border border-[#E5EAE8] rounded-xl bg-white text-[#172121] focus:outline-none focus:border-[#135D66]"
-              >
-                {spaces.map((s) => (
-                  <option key={s.id} value={s.name}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
+                {cat}
+              </button>
+            ))}
           </div>
 
-          <div className="space-y-1.5">
-            <label className="block text-xs font-medium text-[#4E5D5B]">Contenido</label>
-            <textarea
-              rows={4}
-              required
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="Escribe con libertad..."
-              className="w-full px-3.5 py-2.5 text-sm border border-[#E5EAE8] rounded-xl text-[#172121] focus:outline-none focus:border-[#135D66]"
-            />
-          </div>
+          <input
+            type="text"
+            required
+            autoFocus
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Título breve..."
+            className="w-full px-3.5 py-2.5 text-sm border border-[#E5EAE8] rounded-xl text-[#172121] focus:outline-none focus:border-[#135D66]"
+          />
 
-          <div className="flex items-center justify-end gap-3 pt-2">
+          <textarea
+            rows={4}
+            required
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            placeholder="Escribe aquí tu idea o nota..."
+            className="w-full px-3.5 py-2.5 text-sm border border-[#E5EAE8] rounded-xl text-[#172121] focus:outline-none focus:border-[#135D66]"
+          />
+
+          <button
+            type="button"
+            onClick={() => setShowSpacePicker((v) => !v)}
+            className="text-xs text-[#135D66] hover:underline cursor-pointer"
+          >
+            {showSpacePicker ? 'Ocultar espacio' : `+ Asociar a espacio (${spaceName})`}
+          </button>
+
+          {showSpacePicker && (
+            <select
+              value={spaceName}
+              onChange={(e) => setSpaceName(e.target.value)}
+              className="w-full px-3 py-2 text-xs border border-[#E5EAE8] rounded-xl bg-white text-[#172121] focus:outline-none focus:border-[#135D66]"
+            >
+              {spaces.map((s) => (
+                <option key={s.id} value={s.name}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          )}
+
+          <div className="flex items-center justify-end gap-3 pt-1">
             <button
               type="button"
               onClick={() => setCreateOpen(false)}
-              className="px-4 py-2 text-sm font-medium text-[#52605E] hover:text-[#172121] cursor-pointer"
+              className="px-3.5 py-2 text-xs font-medium text-[#52605E] hover:text-[#172121] cursor-pointer"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="px-4 py-2 text-sm font-medium bg-[#135D66] text-white rounded-xl hover:bg-[#0E4950] transition-colors cursor-pointer"
+              className="px-4 py-2 text-xs font-medium bg-[#135D66] text-white rounded-xl hover:bg-[#0E4950] transition-colors cursor-pointer"
             >
-              Guardar en biblioteca
+              Guardar
             </button>
           </div>
         </form>

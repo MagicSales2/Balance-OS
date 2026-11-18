@@ -15,92 +15,104 @@ export function SettingsView({ preferences, onSavePreferences }: SettingsViewPro
     e.preventDefault();
     onSavePreferences({
       ...form,
-      name: form.name.trim() || 'Sofía',
+      name: form.name.trim(),
     });
     setSavedNotice(true);
     setTimeout(() => setSavedNotice(false), 3000);
   };
 
   return (
-    <div className="space-y-7 max-w-3xl">
-      <div className="pb-6 border-b border-[#E5EAE8] space-y-1.5">
+    <div className="space-y-6 max-w-2xl">
+      <div className="pb-5 border-b border-[#E5EAE8]">
         <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#172121]">
           Configuración
         </h1>
-        <p className="text-sm text-[#4E5D5B]">
-          Ajusta tu perfil y preferencias personales para que BALANCE OS se adapte a tu ritmo.
-        </p>
+        <p className="text-sm text-[#52605E] mt-1">Perfil y preferencias de sesión</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-5">
         {/* Perfil personal */}
-        <section className="bg-white border border-[#E5EAE8] rounded-2xl p-6 space-y-5">
-          <div>
-            <h2 className="text-base font-semibold text-[#172121]">Perfil personal</h2>
-            <p className="text-xs text-[#768482] mt-0.5">
-              Información básica de demostración (almacenada solo en esta sesión)
-            </p>
-          </div>
+        <section className="bg-white border border-[#E5EAE8] rounded-2xl p-6 space-y-4">
+          <h2 className="text-base font-semibold text-[#172121]">Perfil</h2>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label htmlFor="pref-name" className="block text-xs font-medium text-[#4E5D5B]">
-                Cómo te gustaría que te saludemos
+                Nombre (opcional)
               </label>
               <input
                 id="pref-name"
                 type="text"
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className="w-full px-3.5 py-2.5 text-sm border border-[#E5EAE8] rounded-xl text-[#172121] focus:outline-none focus:border-[#135D66]"
+                placeholder="¿Cómo quieres que te llame?"
+                className="w-full px-3.5 py-2 text-sm border border-[#E5EAE8] rounded-xl text-[#172121] focus:outline-none focus:border-[#135D66]"
               />
             </div>
 
             <div className="space-y-1.5">
               <label htmlFor="pref-email" className="block text-xs font-medium text-[#4E5D5B]">
-                Correo personal (demo)
+                Correo
               </label>
               <input
                 id="pref-email"
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
-                className="w-full px-3.5 py-2.5 text-sm border border-[#E5EAE8] rounded-xl text-[#172121] focus:outline-none focus:border-[#135D66]"
+                className="w-full px-3.5 py-2 text-sm border border-[#E5EAE8] rounded-xl text-[#172121] focus:outline-none focus:border-[#135D66]"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label htmlFor="pref-city" className="block text-xs font-medium text-[#4E5D5B]">
+                Ciudad
+              </label>
+              <input
+                id="pref-city"
+                type="text"
+                value={form.city ?? ''}
+                onChange={(e) => setForm({ ...form, city: e.target.value })}
+                className="w-full px-3.5 py-2 text-sm border border-[#E5EAE8] rounded-xl text-[#172121] focus:outline-none focus:border-[#135D66]"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="pref-role" className="block text-xs font-medium text-[#4E5D5B]">
+                Perfil profesional
+              </label>
+              <input
+                id="pref-role"
+                type="text"
+                value={form.role ?? ''}
+                onChange={(e) => setForm({ ...form, role: e.target.value })}
+                className="w-full px-3.5 py-2 text-sm border border-[#E5EAE8] rounded-xl text-[#172121] focus:outline-none focus:border-[#135D66]"
               />
             </div>
           </div>
 
           <div className="space-y-1.5">
             <label htmlFor="pref-motto" className="block text-xs font-medium text-[#4E5D5B]">
-              Intención o frase guía
+              Frase guía
             </label>
             <textarea
               id="pref-motto"
               rows={2}
               value={form.personalMotto}
               onChange={(e) => setForm({ ...form, personalMotto: e.target.value })}
-              className="w-full px-3.5 py-2.5 text-sm border border-[#E5EAE8] rounded-xl text-[#172121] focus:outline-none focus:border-[#135D66]"
+              className="w-full px-3.5 py-2 text-sm border border-[#E5EAE8] rounded-xl text-[#172121] focus:outline-none focus:border-[#135D66]"
             />
           </div>
         </section>
 
         {/* Preferencias de ritmo */}
-        <section className="bg-white border border-[#E5EAE8] rounded-2xl p-6 space-y-5">
-          <div>
-            <h2 className="text-base font-semibold text-[#172121]">Ritmo y acompañamiento</h2>
-            <p className="text-xs text-[#768482] mt-0.5">
-              Configura avisos suaves sin alarmas invasivas
-            </p>
-          </div>
+        <section className="bg-white border border-[#E5EAE8] rounded-2xl p-6 space-y-4">
+          <h2 className="text-base font-semibold text-[#172121]">Avisos suaves</h2>
 
           <div className="divide-y divide-[#EFF2F1]">
-            <label className="py-3 first:pt-0 flex items-center justify-between gap-4 cursor-pointer">
-              <div>
-                <p className="text-sm font-medium text-[#172121]">Registro matutino breve</p>
-                <p className="text-xs text-[#768482]">
-                  Invitación amable al iniciar el día para notar tu energía
-                </p>
-              </div>
+            <label className="py-2.5 first:pt-0 flex items-center justify-between gap-4 cursor-pointer">
+              <span className="text-sm text-[#172121]">Registro matutino breve</span>
               <input
                 type="checkbox"
                 checked={form.morningCheckIn}
@@ -109,13 +121,8 @@ export function SettingsView({ preferences, onSavePreferences }: SettingsViewPro
               />
             </label>
 
-            <label className="py-3 flex items-center justify-between gap-4 cursor-pointer">
-              <div>
-                <p className="text-sm font-medium text-[#172121]">Resumen semanal sereno</p>
-                <p className="text-xs text-[#768482]">
-                  Vista de cierre de semana centrada en equilibrio, no en productividad
-                </p>
-              </div>
+            <label className="py-2.5 flex items-center justify-between gap-4 cursor-pointer">
+              <span className="text-sm text-[#172121]">Resumen semanal sereno</span>
               <input
                 type="checkbox"
                 checked={form.weeklyDigest}
@@ -124,13 +131,8 @@ export function SettingsView({ preferences, onSavePreferences }: SettingsViewPro
               />
             </label>
 
-            <label className="py-3 last:pb-0 flex items-center justify-between gap-4 cursor-pointer">
-              <div>
-                <p className="text-sm font-medium text-[#172121]">Recordatorios de pausa</p>
-                <p className="text-xs text-[#768482]">
-                  Sugerencias sutiles entre bloques largos de concentración
-                </p>
-              </div>
+            <label className="py-2.5 last:pb-0 flex items-center justify-between gap-4 cursor-pointer">
+              <span className="text-sm text-[#172121]">Recordatorios de pausa</span>
               <input
                 type="checkbox"
                 checked={form.gentleReminders}
@@ -142,13 +144,8 @@ export function SettingsView({ preferences, onSavePreferences }: SettingsViewPro
         </section>
 
         {/* Preferencias generales y asistente */}
-        <section className="bg-white border border-[#E5EAE8] rounded-2xl p-6 space-y-5">
-          <div>
-            <h2 className="text-base font-semibold text-[#172121]">Formato y asistente</h2>
-            <p className="text-xs text-[#768482] mt-0.5">
-              Opciones visuales y tono del panel lateral de conversación
-            </p>
-          </div>
+        <section className="bg-white border border-[#E5EAE8] rounded-2xl p-6 space-y-4">
+          <h2 className="text-base font-semibold text-[#172121]">Formato y asistente</h2>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-1.5">

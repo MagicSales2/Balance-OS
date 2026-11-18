@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { MessageCircle, RotateCcw, Send, Sparkles, X } from 'lucide-react';
 import { ChatMessage, EnergyState, NavSection, UserPreferences } from '../../types/balance';
+import { AdaptiveScope } from '../../utils/adaptivePlanning';
 
 interface AiAssistantDrawerProps {
   open: boolean;
@@ -11,43 +12,47 @@ interface AiAssistantDrawerProps {
   energy: EnergyState;
   initialPrompt?: string | null;
   onClearInitialPrompt: () => void;
+  onOpenAdaptivePlanning: (scope: AdaptiveScope) => void;
+  onQuickAddIntention: (title: string, spaceId: string) => void;
+}
+
+interface RichAssistantMessage extends ChatMessage {
+  action?: {
+    label: string;
+    type: 'reorganize_day' | 'reorganize_week' | 'add_intention';
+    payload?: string;
+  };
 }
 
 const SECTION_SUGGESTIONS: Record<NavSection, string[]> = {
   inicio: [
-    '¿Cómo enfoco mi tarde con calma?',
-    'Tengo poca energía mental hoy, ¿qué priorizo?',
-    'Sugiere una pausa consciente de 10 minutos',
+    'Reorganizar mi día',
+    'Priorizar entre Magia Pastelera y proyectos',
+    'Sugiere una pausa de 10 min',
   ],
   espacios: [
-    '¿Qué espacio necesita más cuidado esta semana?',
-    'Ayúdame a definir una intención para Bienestar',
-    '¿Cómo equilibro trabajo y descanso sin rigidez?',
+    '¿Qué espacio necesita atención hoy?',
+    'Reducir dependencia de Magia Pastelera',
   ],
   planificacion: [
-    'Organiza mis bloques de hoy sin saturar la tarde',
-    '¿Dónde puedo dejar un espacio libre esta semana?',
-    'Reorganiza mis compromisos con ritmo más suave',
+    'Reorganizar mi semana',
+    'Ordenar mis pendientes sin saturar',
   ],
   evolucion: [
-    '¿Qué notas en mi tendencia de energía reciente?',
-    '¿Cómo cuidar mejor mi descanso según estos días?',
-    'Dame una pregunta de reflexión para cerrar el día',
+    '¿Cómo empiezo a registrar mi energía?',
+    'Pregunta breve para cerrar el día',
   ],
   finanzas: [
-    '¿Cómo va mi balance mensual en términos simples?',
-    '¿Qué hábito tranquilo me ayuda a sostener mi ahorro?',
-    'Revisa mis gastos de ocio y bienestar este mes',
+    '¿Qué conviene registrar primero en Finanzas?',
+    'Separar flujo de Magia Pastelera y personal',
   ],
   biblioteca: [
-    'Propón una idea de reflexión sobre ritmo sostenible',
-    'Ayúdame a resumir mis notas recientes',
-    '¿Qué recurso me sirve para desconectar al final del día?',
+    'Idea para automatizar atención en WhatsApp',
+    'Enfoque para proyectos con IA',
   ],
   configuracion: [
-    '¿Qué tono de acompañamiento me recomiendas?',
-    '¿Cómo ajustar recordatorios sin sentir presión?',
-    'Ayúdame a redactar mi intención personal',
+    '¿Qué tono me recomiendas?',
+    'Personalizar mi perfil',
   ],
 };
 
@@ -56,53 +61,90 @@ function generateSimulatedReply(
   section: NavSection,
   preferences: UserPreferences,
   energy: EnergyState
-): string {
+): { text: string; action?: RichAssistantMessage['action'] } {
   const q = query.toLowerCase();
-  const tonePrefix =
-    preferences.aiTone === 'Directo y sereno'
-      ? ''
-      : preferences.aiTone === 'Estructurado y breve'
-        ? 'En tres puntos claros: '
-        : `${preferences.name}, `;
+
+  if (q.includes('reorganizar') && q.includes('semana')) {
+    return {
+      text: 'Podemos ordenar tu semana en un momento según tu prioridad actual.',
+      action: { label: 'Abrir organizador de semana', type: 'reorganize_week' },
+    };
+  }
+
+  if (q.includes('reorganizar') || (q.includes('organiz') && q.includes('día'))) {
+    return {
+      text: 'Revisemos juntos tus pendientes y energía para ordenar el día.',
+      action: { label: 'Abrir organizador de día', type: 'reorganize_day' },
+    };
+  }
+
+  const addMatch = query.match(/^(?:añadir|agregar|anotar|recordar)\s+(.+)/i);
+  if (addMatch && addMatch[1].trim().length > 2) {
+    const cleanTitle = addMatch[1].trim();
+    return {
+      text: `Puedo sumar "${cleanTitle}" a tu lista de hoy.`,
+      action: { label: 'Añadir a Mi día', type: 'add_intention', payload: cleanTitle },
+    };
+  }
+
+  const namePrefix =
+    preferences.name.trim() && preferences.aiTone !== 'Directo y sereno'
+      ? `${preferences.name}, `
+      : '';
+
+  if (
+    q.includes('magia') ||
+    q.includes('pastelera') ||
+    q.includes('ads') ||
+    q.includes('whatsapp') ||
+    q.includes('prioriz')
+  ) {
+    return {
+      text: `${namePrefix}para que Magia Pastelera no consuma toda tu energía hoy, separa un bloque corto solo para revisar Meta Ads o automatizar respuestas de WhatsApp, y protege otro bloque libre para tus proyectos digitales e IA.`,
+      action: { label: 'Reorganizar mi día', type: 'reorganize_day' },
+    };
+  }
 
   if (q.includes('tarde') || q.includes('energía') || q.includes('mental') || q.includes('poca')) {
-    return `${tonePrefix}viendo que tu energía física está en ${energy.physical}/5 y tu energía mental en ${energy.mental}/5 (${energy.emotionalLabel.toLowerCase()}), lo más amable hoy es cerrar solo el compromiso con Laura y dejar las tareas analíticas para mañana por la mañana. Una caminata de 20 minutos después de comer te ayudará a despejar sin exigirte de más.`;
+    const energySummary =
+      energy.physical > 0 && energy.mental > 0
+        ? `con tu energía actual (${energy.physical}/5 física, ${energy.mental}/5 mental)`
+        : 'si hoy buscas cuidar tu energía';
+    return {
+      text: `${namePrefix}${energySummary}, cierra solo un pendiente concreto de alto impacto y deja el resto para mañana.`,
+      action: { label: 'Reorganizar mi día', type: 'reorganize_day' },
+    };
   }
 
-  if (q.includes('pausa') || q.includes('descanso') || q.includes('respir')) {
-    return `${tonePrefix}prueba una transición de 10 minutos sin pantallas: prepara algo caliente, mira por la ventana y haz cuatro respiraciones lentas exhalando un poco más largo de lo que inhalas. No hace falta hacer nada productivo en ese rato; el descanso también sostiene tu semana.`;
+  if (q.includes('pausa') || q.includes('descanso') || q.includes('desconectar')) {
+    return {
+      text: 'Toma 10 minutos lejos del celular y WhatsApp, estira hombros y haz cuatro respiraciones lentas antes de retomar.',
+    };
   }
 
-  if (q.includes('equilibr') || q.includes('espacio') || q.includes('semana')) {
-    return `${tonePrefix}esta semana Trabajo y Bienestar ocupan casi la mitad de tu atención, mientras Ocio y Hogar están en un ritmo más suave. No tienes que repartirlo todo igual cada semana; basta con proteger un momento pequeño para ti el jueves y tu almuerzo familiar del sábado.`;
+  if (q.includes('finanz') || q.includes('gast') || q.includes('balance') || q.includes('flujo')) {
+    return {
+      text: 'Aún no hay movimientos registrados. Puedes empezar anotando las ventas o gastos principales de Magia Pastelera junto con tu inversión en Meta Ads para ver la rentabilidad real en COP.',
+    };
   }
 
-  if (q.includes('finanz') || q.includes('ahorro') || q.includes('gast') || q.includes('balance')) {
-    return `${tonePrefix}con los datos de demostración de este mes mantienes un margen positivo cercano al 23% y ya cubriste tu aporte al fondo de tranquilidad. Tu presupuesto de ocio y bienestar todavía tiene margen cómodo si decides darte un gusto sin culpas.`;
-  }
-
-  if (q.includes('reflex') || q.includes('nota') || q.includes('biblioteca')) {
-    return `${tonePrefix}una pregunta sencilla para guardar hoy en Mi biblioteca: "¿Qué cosa pequeña de hoy me hizo sentir realmente presente, y qué podría soltar mañana sin que pase nada grave?"`;
+  if (q.includes('evoluc') || q.includes('registr')) {
+    return {
+      text: 'Todavía no tienes histórico en Mi evolución. Registra tu primer momento hoy en 10 segundos y con el paso de los días verás qué hábitos cuidan mejor tu energía.',
+    };
   }
 
   const sectionHints: Record<NavSection, string> = {
-    inicio:
-      'Tu jornada de hoy tiene buen margen si proteges tu caminata de mediodía y disfrutas el café de la tarde sin mirar pendientes.',
-    espacios:
-      'Cada espacio tiene su temporada. Si uno está en pausa consciente, está cumpliendo su función de darte aire en otros frentes.',
-    planificacion:
-      'Tu semana se ve respirable: tienes espacio entre bloques y el domingo completamente abierto para descansar.',
-    evolucion:
-      'En los últimos registros se nota que los días con movimiento suave al mediodía elevan tu calma al final de la jornada.',
-    finanzas:
-      'Tus números muestran estabilidad y previsión. La claridad financiera aquí busca darte tranquilidad, no rigidez.',
-    biblioteca:
-      'Tus notas reflejan una búsqueda constante de ritmo humano y menos ruido visual.',
-    configuracion:
-      'Puedes adaptar el ritmo y tono del espacio cuando cambie tu momento vital; la herramienta se ajusta a ti, no al revés.',
+    inicio: 'Puedes contarme qué tienes en mente o pedirme añadir un pendiente rápido a tu día.',
+    espacios: 'Tus 7 espacios están listos con tu contexto real; puedes ajustar ritmos u objetivos cuando quieras.',
+    planificacion: 'Tu agenda empieza limpia sin compromisos inventados. Si quieres distribuir pendientes, abre el organizador.',
+    evolucion: 'Registra tu primer momento para comenzar tu bitácora real de energía y calma.',
+    finanzas: 'Tu módulo financiero está en $0 COP esperando tus registros reales.',
+    biblioteca: 'Ya tienes precargado el catálogo de Magia Pastelera, tu perfil profesional y tus notas base.',
+    configuracion: 'Si quieres que te llame por tu nombre o cambiar preferencias, puedes ajustarlo aquí.',
   };
 
-  return `${tonePrefix}${sectionHints[section]} (Respuesta simulada en esta primera etapa de BALANCE OS).`;
+  return { text: sectionHints[section] };
 }
 
 export function AiAssistantDrawer({
@@ -114,17 +156,21 @@ export function AiAssistantDrawer({
   energy,
   initialPrompt,
   onClearInitialPrompt,
+  onOpenAdaptivePlanning,
+  onQuickAddIntention,
 }: AiAssistantDrawerProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([
+  const greetingName = preferences.name.trim() ? `, ${preferences.name}` : '';
+  const [messages, setMessages] = useState<RichAssistantMessage[]>([
     {
       id: 'welcome-1',
       sender: 'assistant',
-      text: `Hola, ${preferences.name}. Estoy aquí para acompañarte a ordenar tus días con calma, sin prisas ni exigencias. ¿En qué espacio te gustaría poner claridad hoy?`,
+      text: `Hola${greetingName}. Dime qué necesitas ordenar, añadir o ajustar hoy.`,
       timestamp: 'Ahora',
     },
   ]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [executedActionIds, setExecutedActionIds] = useState<Record<string, boolean>>({});
   const endRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -154,7 +200,7 @@ export function AiAssistantDrawer({
     const content = (textToSend ?? input).trim();
     if (!content || isTyping) return;
 
-    const userMsg: ChatMessage = {
+    const userMsg: RichAssistantMessage = {
       id: `user-${Date.now()}`,
       sender: 'user',
       text: content,
@@ -166,16 +212,35 @@ export function AiAssistantDrawer({
     setIsTyping(true);
 
     setTimeout(() => {
-      const replyText = generateSimulatedReply(content, activeSection, preferences, energy);
-      const botMsg: ChatMessage = {
+      const reply = generateSimulatedReply(content, activeSection, preferences, energy);
+      const botMsg: RichAssistantMessage = {
         id: `bot-${Date.now()}`,
         sender: 'assistant',
-        text: replyText,
+        text: reply.text,
+        action: reply.action,
         timestamp: 'Ahora',
       };
       setMessages((prev) => [...prev, botMsg]);
       setIsTyping(false);
-    }, 550);
+    }, 360);
+  };
+
+  const handleMessageAction = (msg: RichAssistantMessage) => {
+    if (!msg.action) return;
+    if (msg.action.type === 'reorganize_day') {
+      onClose();
+      onOpenAdaptivePlanning('day');
+      return;
+    }
+    if (msg.action.type === 'reorganize_week') {
+      onClose();
+      onOpenAdaptivePlanning('week');
+      return;
+    }
+    if (msg.action.type === 'add_intention' && msg.action.payload) {
+      onQuickAddIntention(msg.action.payload, 'trabajo');
+      setExecutedActionIds((prev) => ({ ...prev, [msg.id]: true }));
+    }
   };
 
   const handleReset = () => {
@@ -183,10 +248,11 @@ export function AiAssistantDrawer({
       {
         id: `welcome-${Date.now()}`,
         sender: 'assistant',
-        text: `Conversación reiniciada. ¿Qué te ayudaría a sentir mayor equilibrio en este momento, ${preferences.name}?`,
+        text: `¿En qué te ayudo ahora${greetingName}?`,
         timestamp: 'Ahora',
       },
     ]);
+    setExecutedActionIds({});
   };
 
   const suggestions = SECTION_SUGGESTIONS[activeSection];
@@ -197,8 +263,8 @@ export function AiAssistantDrawer({
         <button
           type="button"
           onClick={onToggle}
-          aria-label="Abrir asistente de acompañamiento"
-          className="fixed bottom-5 right-5 z-30 flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-[#135D66] text-white shadow-md hover:bg-[#0E4950] transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#135D66] focus-visible:ring-offset-2"
+          aria-label="Abrir asistente"
+          className="fixed bottom-5 right-5 z-30 flex items-center gap-2 px-4 py-3 rounded-2xl bg-[#135D66] text-white shadow-md hover:bg-[#0E4950] transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#135D66] focus-visible:ring-offset-2"
         >
           <Sparkles className="w-4 h-4 shrink-0" />
           <span className="text-sm font-medium whitespace-nowrap">Asistente</span>
@@ -214,21 +280,19 @@ export function AiAssistantDrawer({
           />
 
           <aside
-            aria-label="Panel del Asistente Balance"
-            className="relative z-10 w-full max-w-[420px] h-full bg-white border-l border-[#E5EAE8] shadow-xl flex flex-col"
+            aria-label="Asistente Balance"
+            className="relative z-10 w-full max-w-[400px] h-full bg-white border-l border-[#E5EAE8] shadow-xl flex flex-col"
           >
-            <div className="flex items-center justify-between px-6 py-4 border-b border-[#E5EAE8] shrink-0">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[#E5EAE8] shrink-0">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-xl bg-[#F3F1F8] text-[#7D71A8] flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 rounded-xl bg-[#ECF4F5] text-[#135D66] flex items-center justify-center shrink-0">
                   <MessageCircle className="w-4 h-4" />
                 </div>
                 <div className="min-w-0">
                   <h2 className="text-sm font-semibold text-[#172121] truncate">
                     Asistente Balance
                   </h2>
-                  <p className="text-xs text-[#768482] truncate">
-                    Acompañamiento simulado · Tono {preferences.aiTone.toLowerCase()}
-                  </p>
+                  <p className="text-xs text-[#768482] truncate">Tu copiloto personal</p>
                 </div>
               </div>
 
@@ -253,30 +317,43 @@ export function AiAssistantDrawer({
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4 bg-[#FAFBFB]">
-              {messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`flex flex-col ${
-                    msg.sender === 'user' ? 'items-end' : 'items-start'
-                  }`}
-                >
+            <div className="flex-1 overflow-y-auto px-5 py-5 space-y-3.5 bg-[#FAFBFB]">
+              {messages.map((msg) => {
+                const done = executedActionIds[msg.id];
+                return (
                   <div
-                    className={`max-w-[86%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                      msg.sender === 'user'
-                        ? 'bg-[#135D66] text-white'
-                        : 'bg-white border border-[#E5EAE8] text-[#172121]'
+                    key={msg.id}
+                    className={`flex flex-col gap-1.5 ${
+                      msg.sender === 'user' ? 'items-end' : 'items-start'
                     }`}
                   >
-                    {msg.text}
+                    <div
+                      className={`max-w-[86%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                        msg.sender === 'user'
+                          ? 'bg-[#135D66] text-white'
+                          : 'bg-white border border-[#E5EAE8] text-[#172121]'
+                      }`}
+                    >
+                      {msg.text}
+                    </div>
+                    {msg.action && (
+                      <button
+                        type="button"
+                        disabled={done}
+                        onClick={() => handleMessageAction(msg)}
+                        className="px-3 py-1.5 rounded-xl text-xs font-medium bg-[#ECF4F5] text-[#135D66] hover:bg-[#DFEEF0] disabled:opacity-60 transition-colors cursor-pointer"
+                      >
+                        {done ? 'Añadido a Mi día' : msg.action.label}
+                      </button>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
 
               {isTyping && (
                 <div className="flex items-start">
-                  <div className="bg-white border border-[#E5EAE8] rounded-2xl px-4 py-3 text-xs text-[#768482]">
-                    Pensando con calma...
+                  <div className="bg-white border border-[#E5EAE8] rounded-2xl px-4 py-2.5 text-xs text-[#768482]">
+                    Pensando...
                   </div>
                 </div>
               )}
@@ -308,7 +385,7 @@ export function AiAssistantDrawer({
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Cuéntame cómo va tu día..."
+                  placeholder="Escribe lo que necesitas..."
                   className="flex-1 px-3.5 py-2.5 text-sm bg-[#F7F8F7] border border-[#E5EAE8] rounded-xl text-[#172121] placeholder:text-[#768482] focus:outline-none focus:border-[#135D66] focus:bg-white transition-colors"
                 />
                 <button

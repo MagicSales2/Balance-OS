@@ -6,6 +6,8 @@ import {
   UserPreferences,
 } from '../types/balance';
 
+export type AdaptiveScope = 'day' | 'week';
+
 export type ProposalActionType =
   | 'mantener'
   | 'reprogramar'
@@ -23,6 +25,8 @@ export interface ReorganizationSuggestion {
   originalTitle: string;
   proposedTitle: string;
   proposedTimeWindow: string;
+  proposedDayIndex?: number;
+  proposedDateLabel?: string;
   steps?: string[];
   reason: string;
   status: 'accepted' | 'discarded';
@@ -33,16 +37,14 @@ export interface AdaptiveContextSnapshot {
   energy: EnergyState;
   pendingIntentions: DailyIntention[];
   todayCommitments: Commitment[];
+  weekCommitments: Commitment[];
   relevantGoals: LifeSpace[];
   personalMotto: string;
-  remainingTimeLabel: string;
 }
 
 export interface AdaptivePlanProposal {
-  greetingMessage: string;
-  realPriorities: string[];
+  assistantReply: string;
   suggestions: ReorganizationSuggestion[];
-  closingNote: string;
 }
 
 const HEAVY_MOODS = new Set([
@@ -65,8 +67,9 @@ export function buildAdaptiveContextSnapshot(params: {
 
   const pendingIntentions = intentions.filter((i) => !i.completed && !i.postponedTo);
   const todayCommitments = commitments.filter((c) => c.dayIndex === 2 && !c.completed);
+  const weekCommitments = commitments.filter((c) => !c.completed);
   const relevantGoals = spaces.filter(
-    (s) => s.rhythm === 'En foco' || s.rhythm === 'Activo'
+    (s) => !s.archived && (s.rhythm === 'En foco' || s.rhythm === 'Activo')
   );
 
   return {
@@ -74,357 +77,385 @@ export function buildAdaptiveContextSnapshot(params: {
     energy,
     pendingIntentions,
     todayCommitments,
+    weekCommitments,
     relevantGoals: relevantGoals.slice(0, 4),
     personalMotto: preferences.personalMotto,
-    remainingTimeLabel: 'Tarde y cierre del día (13:00 – 22:00)',
   };
 }
 
-export function generateAdaptivePlanProposal(
-  context: AdaptiveContextSnapshot
+export function interpretAndPlan(
+  context: AdaptiveContextSnapshot,
+  userMessage: string,
+  scope: AdaptiveScope
 ): AdaptivePlanProposal {
-  const { userName, energy, pendingIntentions, todayCommitments, relevantGoals } = context;
+  const q = userMessage.toLowerCase();
+  const { energy, pendingIntentions, todayCommitments, weekCommitments } = context;
 
-  const lowPhysical = energy.physical <= 2;
-  const lowMental = energy.mental <= 2;
-  const highEnergy = energy.physical >= 4 && energy.mental >= 4;
+  const wantsWorkOnly =
+    q.includes('trabaj') ||
+    q.includes('magia') ||
+    q.includes('ads') ||
+    q.includes('campañ') ||
+    q.includes('negocio');
+  const wantsProjects =
+    q.includes('proyect') || q.includes('ia') || q.includes('automat');
+  const wantsRest =
+    q.includes('descans') ||
+    q.includes('pocas cosas') ||
+    q.includes('liger') ||
+    q.includes('suave') ||
+    q.includes('pausa') ||
+    q.includes('cansad');
+  const tooManyTasks =
+    q.includes('demasiad') ||
+    q.includes('much') ||
+    q.includes('abrum') ||
+    q.includes('pendient') ||
+    q.includes('prioriz');
 
-  const customLower = energy.customMoodText.toLowerCase();
-  const customSoundsHeavy =
+  const lowEnergy =
+    (energy.physical > 0 && energy.physical <= 2) ||
+    (energy.mental > 0 && energy.mental <= 2);
+  const customMood = energy.customMoodText.toLowerCase();
+  const customHeavyMood =
     energy.emotionalLabel === 'Otro' &&
-    (customLower.includes('cans') ||
-      customLower.includes('agob') ||
-      customLower.includes('estres') ||
-      customLower.includes('trist') ||
-      customLower.includes('baj') ||
-      customLower.includes('satur') ||
-      customLower.includes('ansie') ||
-      customLower.includes('pesad'));
+    (customMood.includes('agot') ||
+      customMood.includes('cans') ||
+      customMood.includes('trist') ||
+      customMood.includes('estr') ||
+      customMood.includes('abrum') ||
+      customMood.includes('baj') ||
+      customMood.includes('mal'));
+  const heavyMood = HEAVY_MOODS.has(energy.emotionalLabel) || customHeavyMood;
 
-  const emotionallyHeavy = HEAVY_MOODS.has(energy.emotionalLabel) || customSoundsHeavy;
-
-  const moodDescription =
-    energy.emotionalLabel === 'Otro' && energy.customMoodText.trim()
-      ? `"${energy.customMoodText.trim()}"`
-      : energy.emotionalLabel.toLowerCase();
+  const workTasks = pendingIntentions.filter((i) => i.spaceId === 'trabajo');
+  const projectTasks = pendingIntentions.filter((i) => i.spaceId === 'proyectos');
+  const otherTasks = pendingIntentions.filter(
+    (i) => i.spaceId !== 'trabajo' && i.spaceId !== 'proyectos'
+  );
 
   const suggestions: ReorganizationSuggestion[] = [];
-  const realPriorities: string[] = [];
 
-  // Identify key pending intentions
-  const walkItem = pendingIntentions.find(
-    (i) => i.physicalLoad === 'medio' || i.title.toLowerCase().includes('caminata')
-  );
-  const heavyCognitiveItem = pendingIntentions.find((i) => i.cognitiveLoad === 'alto');
-  const familyOrCallItem = pendingIntentions.find(
-    (i) => i.spaceId === 'familia' || i.title.toLowerCase().includes('llamar')
-  );
-  const readingOrSoftItem = pendingIntentions.find(
-    (i) =>
-      i.id !== walkItem?.id &&
-      i.id !== familyOrCallItem?.id &&
-      i.id !== heavyCognitiveItem?.id &&
-      (i.spaceId === 'desarrollo' || i.title.toLowerCase().includes('lectura'))
-  );
-  const otherPending = pendingIntentions.filter(
-    (i) =>
-      i.id !== walkItem?.id &&
-      i.id !== heavyCognitiveItem?.id &&
-      i.id !== familyOrCallItem?.id &&
-      i.id !== readingOrSoftItem?.id
-  );
-
-  // Today's active commitment (e.g., Café con Laura at 18:15)
-  const primaryCommitment = todayCommitments[0];
-
-  // 1. Handle physical energy
-  if (walkItem) {
-    if (lowPhysical) {
-      suggestions.push({
-        id: 'sug-walk-postpone',
-        actionType: 'reprogramar',
-        targetType: 'intention',
-        targetId: walkItem.id,
-        spaceId: walkItem.spaceId,
-        spaceName: walkItem.spaceName,
-        originalTitle: walkItem.title,
-        proposedTitle: 'Estiramiento suave de 8 minutos o aire fresco sentado',
-        proposedTimeWindow: '16:00',
-        reason:
-          'Con energía física baja, conviene reemplazar la caminata larga por un movimiento suave que no te desgaste.',
-        status: 'accepted',
-      });
-    } else if (emotionallyHeavy) {
-      suggestions.push({
-        id: 'sug-walk-gentle',
-        actionType: 'reprogramar',
-        targetType: 'intention',
-        targetId: walkItem.id,
-        spaceId: walkItem.spaceId,
-        spaceName: walkItem.spaceName,
-        originalTitle: walkItem.title,
-        proposedTitle: 'Paseo sin ritmo ni objetivo de pasos (15 min)',
-        proposedTimeWindow: '14:15 – 14:30',
-        reason:
-          'Salir unos minutos sin exigencia ayuda a despejar la mente y cambiar de aire sin convertirlo en otra obligación.',
-        status: 'accepted',
+  if (scope === 'week') {
+    if (weekCommitments.length > 0) {
+      weekCommitments.slice(0, 3).forEach((com) => {
+        if (wantsRest || lowEnergy || heavyMood) {
+          suggestions.push({
+            id: `wk-${com.id}`,
+            actionType: 'reprogramar',
+            targetType: 'commitment',
+            targetId: com.id,
+            spaceId: com.spaceId,
+            spaceName: com.spaceName,
+            originalTitle: com.title,
+            proposedTitle: com.title,
+            proposedTimeWindow: com.startTime,
+            proposedDayIndex: Math.min(com.dayIndex + 1, 5),
+            proposedDateLabel: com.dateLabel,
+            reason: 'Distribuye mejor la carga para dejar margen libre.',
+            status: 'accepted',
+          });
+        } else {
+          suggestions.push({
+            id: `wk-${com.id}`,
+            actionType: 'mantener',
+            targetType: 'commitment',
+            targetId: com.id,
+            spaceId: com.spaceId,
+            spaceName: com.spaceName,
+            originalTitle: com.title,
+            proposedTitle: com.title,
+            proposedTimeWindow: com.startTime,
+            proposedDayIndex: com.dayIndex,
+            proposedDateLabel: com.dateLabel,
+            reason: 'Encaja bien en tu semana actual.',
+            status: 'accepted',
+          });
+        }
       });
     } else {
-      suggestions.push({
-        id: 'sug-walk-keep',
-        actionType: 'mantener',
-        targetType: 'intention',
-        targetId: walkItem.id,
-        spaceId: walkItem.spaceId,
-        spaceName: walkItem.spaceName,
-        originalTitle: walkItem.title,
-        proposedTitle: walkItem.title,
-        proposedTimeWindow: walkItem.timeWindow,
-        reason:
-          'Tu energía física acompaña bien este movimiento ligero y te dará claridad para la tarde.',
-        status: 'accepted',
+      pendingIntentions.slice(0, 3).forEach((item, idx) => {
+        const dayNames = ['Jueves mañana', 'Viernes mañana', 'Sábado suave'];
+        suggestions.push({
+          id: `wk-int-${item.id}`,
+          actionType: wantsProjects && item.spaceId === 'trabajo' ? 'aplazar' : 'reprogramar',
+          targetType: 'intention',
+          targetId: item.id,
+          spaceId: item.spaceId,
+          spaceName: item.spaceName,
+          originalTitle: item.title,
+          proposedTitle: item.title,
+          proposedTimeWindow: dayNames[idx] ?? 'Esta semana',
+          reason:
+            wantsProjects && item.spaceId === 'trabajo'
+              ? 'Libera espacio semanal para proyectos e IA.'
+              : 'Asigna un momento concreto sin llenar toda la agenda.',
+          status: 'accepted',
+        });
       });
     }
-  }
 
-  // 2. Handle heavy cognitive task (e.g. Cuaderno editorial)
-  if (heavyCognitiveItem) {
-    if (lowMental && emotionallyHeavy) {
-      suggestions.push({
-        id: 'sug-cog-postpone',
-        actionType: 'aplazar',
-        targetType: 'intention',
-        targetId: heavyCognitiveItem.id,
-        spaceId: heavyCognitiveItem.spaceId,
-        spaceName: heavyCognitiveItem.spaceName,
-        originalTitle: heavyCognitiveItem.title,
-        proposedTitle: heavyCognitiveItem.title,
-        proposedTimeWindow: 'Jueves 19 nov · mañana',
-        reason:
-          'Hoy tu mente pide menos carga y el proyecto del cuaderno está pensado para disfrutarse. Moverlo a mañana protege tu ánimo.',
-        status: 'accepted',
-      });
-    } else if (lowMental || emotionallyHeavy) {
-      suggestions.push({
-        id: 'sug-cog-split',
-        actionType: 'dividir',
-        targetType: 'intention',
-        targetId: heavyCognitiveItem.id,
-        spaceId: heavyCognitiveItem.spaceId,
-        spaceName: heavyCognitiveItem.spaceName,
-        originalTitle: heavyCognitiveItem.title,
-        proposedTitle: 'Avanzar solo un esquema breve de 3 ideas del capítulo',
-        proposedTimeWindow: '15:30 – 15:55',
-        steps: [
-          'Abrir la nota existente y releer el título (5 min)',
-          'Anotar 3 viñetas clave sin redactar aún (10 min)',
-          'Guardar y cerrar sin exigirte terminar el capítulo (5 min)',
-        ],
-        reason:
-          'Dividir una tarea exigente en pasos pequeños evita la parálisis y mantiene vivo tu proyecto sin agobio.',
-        status: 'accepted',
-      });
-    } else if (highEnergy) {
-      suggestions.push({
-        id: 'sug-cog-keep-high',
-        actionType: 'mantener',
-        targetType: 'intention',
-        targetId: heavyCognitiveItem.id,
-        spaceId: heavyCognitiveItem.spaceId,
-        spaceName: heavyCognitiveItem.spaceName,
-        originalTitle: heavyCognitiveItem.title,
-        proposedTitle: heavyCognitiveItem.title,
-        proposedTimeWindow: '15:30 – 16:45',
-        reason:
-          'Tienes buena disposición hoy. Cerrar este bloque a las 16:45 aprovecha tu foco sin invadir tu descanso de la tarde.',
-        status: 'accepted',
-      });
-      realPriorities.push('Un bloque creativo enfocado en tu proyecto hasta las 16:45.');
-    } else {
-      suggestions.push({
-        id: 'sug-cog-split-medium',
-        actionType: 'dividir',
-        targetType: 'intention',
-        targetId: heavyCognitiveItem.id,
-        spaceId: heavyCognitiveItem.spaceId,
-        spaceName: heavyCognitiveItem.spaceName,
-        originalTitle: heavyCognitiveItem.title,
-        proposedTitle: 'Definir solo la estructura base del primer capítulo',
-        proposedTimeWindow: '15:30 – 16:15',
-        steps: [
-          'Elegir los 3 subtemas principales del capítulo',
-          'Dejar marcada una idea de ejemplo para retomar mañana',
-        ],
-        reason:
-          'Acotar el bloque a 45 minutos en dos pasos concretos te permite avanzar con serenidad.',
-        status: 'accepted',
-      });
-    }
-  }
-
-  // 3. Handle relational / family call
-  if (familyOrCallItem) {
-    if (emotionallyHeavy && lowPhysical) {
-      suggestions.push({
-        id: 'sug-call-postpone',
-        actionType: 'aplazar',
-        targetType: 'intention',
-        targetId: familyOrCallItem.id,
-        spaceId: familyOrCallItem.spaceId,
-        spaceName: familyOrCallItem.spaceName,
-        originalTitle: familyOrCallItem.title,
-        proposedTitle: familyOrCallItem.title,
-        proposedTimeWindow: 'Jueves 19 nov · 12:30',
-        reason:
-          'Si necesitas silencio hoy, puedes coordinar el sábado con un mensaje breve o dejar la llamada para mañana con mejor ánimo.',
-        status: 'accepted',
-      });
-    } else {
-      suggestions.push({
-        id: 'sug-call-keep',
-        actionType: 'mantener',
-        targetType: 'intention',
-        targetId: familyOrCallItem.id,
-        spaceId: familyOrCallItem.spaceId,
-        spaceName: familyOrCallItem.spaceName,
-        originalTitle: familyOrCallItem.title,
-        proposedTitle: familyOrCallItem.title,
-        proposedTimeWindow: '17:15',
-        reason:
-          'Es una gestión corta y afectiva que cuida tu espacio familiar y queda resuelta antes de tu café.',
-        status: 'accepted',
-      });
-      realPriorities.push('Resolver la llamada familiar antes del final de la tarde.');
-    }
-  }
-
-  // 4. Existing today commitment (e.g. Café tranquilo con Laura)
-  if (primaryCommitment) {
-    if (lowPhysical && emotionallyHeavy) {
-      suggestions.push({
-        id: 'sug-comm-soft',
-        actionType: 'reprogramar',
-        targetType: 'commitment',
-        targetId: primaryCommitment.id,
-        spaceId: primaryCommitment.spaceId,
-        spaceName: primaryCommitment.spaceName,
-        originalTitle: primaryCommitment.title,
-        proposedTitle: `${primaryCommitment.title} (encuentro breve de 40 min)`,
-        proposedTimeWindow: primaryCommitment.startTime,
-        reason:
-          'Mantener el vínculo puede hacerte bien, pero acortarlo un poco te permite volver a casa temprano a descansar.',
-        status: 'accepted',
-      });
-    } else {
-      suggestions.push({
-        id: 'sug-comm-keep',
-        actionType: 'mantener',
-        targetType: 'commitment',
-        targetId: primaryCommitment.id,
-        spaceId: primaryCommitment.spaceId,
-        spaceName: primaryCommitment.spaceName,
-        originalTitle: primaryCommitment.title,
-        proposedTitle: primaryCommitment.title,
-        proposedTimeWindow: primaryCommitment.startTime,
-        reason:
-          'Es un espacio de conexión personal ya reservado y alineado con tu espacio de Relaciones.',
-        status: 'accepted',
-      });
-    }
-    realPriorities.push(`Disfrutar con calma: ${primaryCommitment.title} (${primaryCommitment.startTime}).`);
-  }
-
-  // 5. Any extra user-added pending intentions
-  otherPending.slice(0, 2).forEach((extra, idx) => {
     suggestions.push({
-      id: `sug-extra-${extra.id}-${idx}`,
-      actionType: lowMental || emotionallyHeavy ? 'aplazar' : 'mantener',
+      id: 'wk-rest-open',
+      actionType: 'descanso',
+      targetType: 'new_rest',
+      spaceId: 'vida-disfrute',
+      spaceName: 'Vida y disfrute',
+      originalTitle: 'Tiempo libre',
+      proposedTitle: 'Bloque libre sin pendientes operativos de Magia Pastelera',
+      proposedTimeWindow: 'Domingo',
+      reason: 'Protege un cierre de semana sin intervención diaria en el negocio.',
+      status: 'accepted',
+    });
+
+    return {
+      assistantReply:
+        weekCommitments.length === 0
+          ? 'Como aún no tienes compromisos fijos en la agenda, distribuí tus pendientes iniciales con margen para respirar.'
+          : 'Ordené tu semana priorizando foco real y dejando espacio abierto para descansar.',
+      suggestions: suggestions.slice(0, 4),
+    };
+  }
+
+  // DAY SCOPE
+  if (wantsWorkOnly) {
+    const primaryWork = workTasks[0] ?? pendingIntentions[0];
+    const secondaryWork = workTasks[1];
+
+    if (primaryWork) {
+      suggestions.push({
+        id: `day-w1-${primaryWork.id}`,
+        actionType: 'mantener',
+        targetType: 'intention',
+        targetId: primaryWork.id,
+        spaceId: primaryWork.spaceId,
+        spaceName: primaryWork.spaceName,
+        originalTitle: primaryWork.title,
+        proposedTitle: primaryWork.title,
+        proposedTimeWindow: 'Bloque principal de hoy',
+        reason: 'Atiende primero lo de mayor impacto en Magia Pastelera.',
+        status: 'accepted',
+      });
+    }
+
+    if (secondaryWork) {
+      suggestions.push({
+        id: `day-w2-${secondaryWork.id}`,
+        actionType: 'dividir',
+        targetType: 'intention',
+        targetId: secondaryWork.id,
+        spaceId: secondaryWork.spaceId,
+        spaceName: secondaryWork.spaceName,
+        originalTitle: secondaryWork.title,
+        proposedTitle: secondaryWork.title,
+        proposedTimeWindow: 'Segundo bloque (30 min)',
+        steps: [
+          'Revisar 1 métrica o cuello de botella concreto',
+          'Anotar una acción práctica y cerrar',
+        ],
+        reason: 'Acotado en tiempo para no consumir todo el día.',
+        status: 'accepted',
+      });
+    }
+
+    if (projectTasks[0]) {
+      suggestions.push({
+        id: `day-w-proj-${projectTasks[0].id}`,
+        actionType: 'aplazar',
+        targetType: 'intention',
+        targetId: projectTasks[0].id,
+        spaceId: projectTasks[0].spaceId,
+        spaceName: projectTasks[0].spaceName,
+        originalTitle: projectTasks[0].title,
+        proposedTitle: projectTasks[0].title,
+        proposedTimeWindow: 'Mañana',
+        reason: 'Se mueve a mañana para mantener el foco de hoy en trabajo.',
+        status: 'accepted',
+      });
+    }
+
+    if (todayCommitments[0]) {
+      suggestions.push({
+        id: `day-com-${todayCommitments[0].id}`,
+        actionType: 'mantener',
+        targetType: 'commitment',
+        targetId: todayCommitments[0].id,
+        spaceId: todayCommitments[0].spaceId,
+        spaceName: todayCommitments[0].spaceName,
+        originalTitle: todayCommitments[0].title,
+        proposedTitle: todayCommitments[0].title,
+        proposedTimeWindow: todayCommitments[0].startTime,
+        reason: 'Compromiso ya agendado para hoy.',
+        status: 'accepted',
+      });
+    }
+
+    return {
+      assistantReply:
+        'Concentré el día en lo esencial de Magia Pastelera y aparté el resto para no dispersarte.',
+      suggestions: suggestions.slice(0, 4),
+    };
+  }
+
+  if (wantsProjects) {
+    const mainProj = projectTasks[0] ?? pendingIntentions[0];
+    if (mainProj) {
+      suggestions.push({
+        id: `day-p1-${mainProj.id}`,
+        actionType: energy.mental > 0 && energy.mental <= 2 ? 'dividir' : 'mantener',
+        targetType: 'intention',
+        targetId: mainProj.id,
+        spaceId: mainProj.spaceId,
+        spaceName: mainProj.spaceName,
+        originalTitle: mainProj.title,
+        proposedTitle: mainProj.title,
+        proposedTimeWindow: 'Primer bloque de enfoque',
+        steps:
+          energy.mental > 0 && energy.mental <= 2
+            ? ['Definir un alcance pequeño de 25 min', 'Dejar anotado el siguiente paso']
+            : undefined,
+        reason: 'Reserva tu mejor energía mental para proyectos digitales e IA.',
+        status: 'accepted',
+      });
+    }
+
+    workTasks.slice(0, 2).forEach((wt, index) => {
+      suggestions.push({
+        id: `day-pw-${wt.id}`,
+        actionType: index === 0 ? 'reprogramar' : 'aplazar',
+        targetType: 'intention',
+        targetId: wt.id,
+        spaceId: wt.spaceId,
+        spaceName: wt.spaceName,
+        originalTitle: wt.title,
+        proposedTitle: wt.title,
+        proposedTimeWindow: index === 0 ? 'Bloque corto en la tarde' : 'Mañana',
+        reason:
+          index === 0
+            ? 'Mantén Magia Pastelera acotada a un bloque breve.'
+            : 'Se mueve a mañana para evitar sobrecargar el día.',
+        status: 'accepted',
+      });
+    });
+
+    return {
+      assistantReply:
+        'Prioricé tus proyectos digitales e IA y dejé Magia Pastelera acotada para que no absorba tu energía.',
+      suggestions: suggestions.slice(0, 4),
+    };
+  }
+
+  if (wantsRest || tooManyTasks || lowEnergy || heavyMood) {
+    const primary = pendingIntentions[0];
+    if (primary) {
+      suggestions.push({
+        id: `day-r1-${primary.id}`,
+        actionType: tooManyTasks && !wantsRest ? 'dividir' : 'reprogramar',
+        targetType: 'intention',
+        targetId: primary.id,
+        spaceId: primary.spaceId,
+        spaceName: primary.spaceName,
+        originalTitle: primary.title,
+        proposedTitle: primary.title,
+        proposedTimeWindow: 'Solo 25 min hoy',
+        steps:
+          tooManyTasks && !wantsRest
+            ? ['Elegir una sola acción concreta', 'Cerrar apenas termines esos 25 min']
+            : undefined,
+        reason: 'Un avance pequeño evita presión y cuida tu energía.',
+        status: 'accepted',
+      });
+    }
+
+    pendingIntentions.slice(1, 3).forEach((item) => {
+      suggestions.push({
+        id: `day-r-post-${item.id}`,
+        actionType: 'aplazar',
+        targetType: 'intention',
+        targetId: item.id,
+        spaceId: item.spaceId,
+        spaceName: item.spaceName,
+        originalTitle: item.title,
+        proposedTitle: item.title,
+        proposedTimeWindow: 'Mañana',
+        reason: 'Queda para mañana para no saturar tu día.',
+        status: 'accepted',
+      });
+    });
+
+    suggestions.push({
+      id: 'day-rest-pause',
+      actionType: 'descanso',
+      targetType: 'new_rest',
+      spaceId: 'bienestar',
+      spaceName: 'Bienestar',
+      originalTitle: 'Descanso consciente',
+      proposedTitle: 'Pausa real sin pendientes ni mensajes comerciales',
+      proposedTimeWindow: 'Al cerrar la tarde',
+      reason: 'Prioriza descanso y desconexión.',
+      status: 'accepted',
+    });
+
+    return {
+      assistantReply:
+        'Dejé solo un bloque ligero para hoy, moví lo demás a mañana y reservé una pausa real para descansar.',
+      suggestions: suggestions.slice(0, 4),
+    };
+  }
+
+  // General balanced plan over actual tasks
+  pendingIntentions.slice(0, 2).forEach((item, idx) => {
+    suggestions.push({
+      id: `day-bal-${item.id}`,
+      actionType: idx === 0 ? 'mantener' : 'dividir',
       targetType: 'intention',
-      targetId: extra.id,
-      spaceId: extra.spaceId,
-      spaceName: extra.spaceName,
-      originalTitle: extra.title,
-      proposedTitle: extra.title,
-      proposedTimeWindow:
-        lowMental || emotionallyHeavy ? 'Mañana con mente fresca' : extra.timeWindow,
-      reason:
-        lowMental || emotionallyHeavy
-          ? 'Diferir lo que no es urgente libera espacio mental para lo esencial de hoy.'
-          : 'Encaja bien en el ritmo disponible sin saturar la tarde.',
+      targetId: item.id,
+      spaceId: item.spaceId,
+      spaceName: item.spaceName,
+      originalTitle: item.title,
+      proposedTitle: item.title,
+      proposedTimeWindow: idx === 0 ? 'Bloque 1 (45 min)' : 'Bloque 2 (30 min)',
+      steps:
+        idx === 1
+          ? ['Definir el resultado mínimo esperado', 'Cerrar bloque a tiempo']
+          : undefined,
+      reason: 'Equilibra avance práctico sin alargar la jornada.',
       status: 'accepted',
     });
   });
 
-  // 6. Incorporate intentional rest space (especially when low energy or stressed, and gently even when high energy)
-  if (emotionallyHeavy || lowPhysical || lowMental) {
+  if (otherTasks[0] && !suggestions.some((s) => s.targetId === otherTasks[0].id)) {
     suggestions.push({
-      id: 'sug-rest-space',
-      actionType: 'descanso',
-      targetType: 'new_rest',
-      spaceId: 'bienestar',
-      spaceName: 'Bienestar',
-      originalTitle: 'Espacio de pausa y cuidado',
-      proposedTitle: 'Pausa sin pantallas: bebida caliente y 10 min de silencio',
-      proposedTimeWindow: '17:35 – 17:55',
-      reason:
-        'Un respiro consciente antes de cerrar la tarde ayuda a soltar tensión acumulada sin culpa.',
-      status: 'accepted',
-    });
-    realPriorities.unshift('Proteger un espacio real de descanso y bajar la exigencia hoy.');
-  } else {
-    suggestions.push({
-      id: 'sug-rest-balance',
-      actionType: 'descanso',
-      targetType: 'new_rest',
-      spaceId: 'bienestar',
-      spaceName: 'Bienestar',
-      originalTitle: 'Transición consciente de cierre',
-      proposedTitle: 'Cierre de jornada y transición tranquila sin pendientes',
-      proposedTimeWindow: '17:50 – 18:05',
-      reason:
-        'Incluso con buena energía, marcar un límite amable evita que el día se llene de tareas extra.',
-      status: 'accepted',
-    });
-  }
-
-  // Ensure reading/evening item stays gentle if present
-  if (readingOrSoftItem && readingOrSoftItem.id !== familyOrCallItem?.id) {
-    suggestions.push({
-      id: 'sug-reading-keep',
+      id: `day-other-${otherTasks[0].id}`,
       actionType: 'mantener',
       targetType: 'intention',
-      targetId: readingOrSoftItem.id,
-      spaceId: readingOrSoftItem.spaceId,
-      spaceName: readingOrSoftItem.spaceName,
-      originalTitle: readingOrSoftItem.title,
-      proposedTitle: readingOrSoftItem.title,
-      proposedTimeWindow: readingOrSoftItem.timeWindow,
-      reason:
-        'Acompaña un cierre de día sereno y nutre tu espacio de Desarrollo personal sin presión.',
+      targetId: otherTasks[0].id,
+      spaceId: otherTasks[0].spaceId,
+      spaceName: otherTasks[0].spaceName,
+      originalTitle: otherTasks[0].title,
+      proposedTitle: otherTasks[0].title,
+      proposedTimeWindow: 'En la tarde',
+      reason: 'Acompaña el día con equilibrio.',
       status: 'accepted',
     });
   }
 
-  if (realPriorities.length === 0) {
-    realPriorities.push('Avanzar solo en lo que hoy te aporte calma y sentido.');
-  }
-
-  const goalNames = relevantGoals.map((g) => g.name).slice(0, 3).join(', ');
-
-  let greetingMessage = `${userName}, gracias por registrar cómo te sientes hoy (energía física ${energy.physical}/5, energía mental ${energy.mental}/5 y ánimo ${moodDescription}). `;
-  if (lowPhysical || lowMental || emotionallyHeavy) {
-    greetingMessage += `Considerando tus ${pendingIntentions.length} intenciones pendientes, tus compromisos de la tarde y tus espacios activos (${goalNames}), preparé una reorganización más amable para que cuides tu energía sin perder lo importante.`;
-  } else if (highEnergy) {
-    greetingMessage += `Tienes muy buena disposición hoy. Mirando tus compromisos y tus espacios (${goalNames}), te propongo aprovechar esta claridad en lo prioritario manteniendo límites sanos para no sobrecargar la tarde.`;
-  } else {
-    greetingMessage += `Con tu nivel actual y el tiempo disponible en la tarde, ajusté tus bloques para que avances con ligereza en lo esencial de tus espacios (${goalNames}).`;
-  }
+  suggestions.push({
+    id: 'day-rest-gentle',
+    actionType: 'descanso',
+    targetType: 'new_rest',
+    spaceId: 'bienestar',
+    spaceName: 'Bienestar',
+    originalTitle: 'Pausa',
+    proposedTitle: 'Cierre de jornada y descanso sin pantallas',
+    proposedTimeWindow: 'Final del día',
+    reason: 'Evita que el trabajo ocupe todo el día.',
+    status: 'accepted',
+  });
 
   return {
-    greetingMessage,
-    realPriorities: realPriorities.slice(0, 3),
-    suggestions,
-    closingNote:
-      'Puedes aceptar, editar o descartar cualquier ajuste antes de aplicarlo. Nada se modificará sin tu confirmación.',
+    assistantReply:
+      'Organicé tus pendientes actuales en bloques cortos para avanzar con claridad y proteger tu tiempo.',
+    suggestions: suggestions.slice(0, 4),
   };
 }
