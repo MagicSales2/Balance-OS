@@ -1,0 +1,6 @@
+{
+  "name": "BALANCE OS",
+  "description": "Plataforma de organización y bienestar personal para comprender, organizar y equilibrar las diferentes dimensiones de tu vida.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

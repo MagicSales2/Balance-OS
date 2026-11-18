@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  --font-sans: "DM Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-canvas: #F7F8F7;
+  --color-surface: #FFFFFF;
+  --color-surface-subtle: #F2F5F4;
+  --color-border-subtle: #E5EAE8;
+
+  --color-ink-primary: #172121;
+  --color-ink-secondary: #4E5D5B;
+  --color-ink-muted: #768482;
+
+  --color-petrol: #135D66;
+  --color-petrol-hover: #0E4950;
+  --color-petrol-soft: #ECF4F5;
+
+  --color-sage: #5E8371;
+  --color-sage-soft: #EEF4F0;
+
+  --color-lavender: #7D71A8;
+  --color-lavender-soft: #F3F1F8;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    color: var(--color-ink-primary);
+    background-color: var(--color-canvas);
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    text-wrap: balance;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
